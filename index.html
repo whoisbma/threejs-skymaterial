@@ -32,13 +32,13 @@
 		const subdivisions = 4;
 
 		var sky1 = null;
-		var sky1Radius = 20;
+		var sky1Radius = 10;
 		var sky1Orig = [];
 		var sky2 = null;
-		var sky2Radius = 500;
+		var sky2Radius = 1010;
 		var sky2Orig = [];
 		var sky3 = null;
-		var sky3Radius = 20;
+		var sky3Radius = 2010;
 		var sky3Orig = [];
 
 		var skyShaderMaterial;
@@ -47,9 +47,14 @@
 		var clock = new THREE.Clock();
 		var time;
 
+		var modeCounter = new THREE.Clock();
+
 		var FOV = 45;
 
 		var whichEffect = 0;
+
+		var lerpSpeed = 0.001;
+    var transitionTime = 60;
 
 		$(document).ready(function() {
 
@@ -62,12 +67,14 @@
 
 			scene = new THREE.Scene();
 			camera = new THREE.PerspectiveCamera(FOV, container.offsetWidth/container.offsetHeight, 1, 4000);
-			camera.position.set(0,0,200);
+			camera.position.set(0,0,90);
 
 			// TIME SETUP -------------------------------------------
 
 			// time = Date.now() - start;
 			time = 0;
+			modeCounter.start();
+
 
 			// LIGHTS -------------------------------------------
 
@@ -76,7 +83,10 @@
 			// MESHES AND MATERIALS -------------------------------------------
 
 			var skyTexture = new THREE.TextureLoader().load( './images/skySphere1.jpg' );
-			var skyMaterial = new THREE.MeshLambertMaterial( { map: skyTexture, side: THREE.DoubleSide } );
+			var skyMaterial = new THREE.MeshLambertMaterial( { 
+				map: skyTexture, 
+				side: THREE.DoubleSide 
+			} );
 
 			skyShaderMaterial = new THREE.ShaderMaterial( {
 				uniforms: {
@@ -89,24 +99,24 @@
 //				side: THREE.BothSide
 			});
 
-			skyShaderMaterial = 
-
 			sky1 = new THREE.Mesh( new THREE.IcosahedronGeometry( sky1Radius, subdivisions ), skyMaterial);
 			sky1.position.set(0, 0, 0);
 			explodeModifier(sky1.geometry);
 			scene.add(sky1);
 
-			var skyMaterial2 = new THREE.MeshLambertMaterial( { 
-				map: skyTexture, 
-				side: THREE.DoubleSide,
-				morphTargets: true
-			} );
-			sky2 = new THREE.Mesh( new THREE.IcosahedronGeometry( sky2Radius, subdivisions ), skyMaterial2);
+			sky2 = new THREE.Mesh( new THREE.IcosahedronGeometry( sky2Radius, subdivisions ), skyMaterial);
+			sky2.position.set(0, 0, 0);
 			explodeModifier(sky2.geometry);
 			scene.add( sky2 );
 
+			sky3 = new THREE.Mesh( new THREE.IcosahedronGeometry( sky3Radius, subdivisions ), skyMaterial);
+			sky3.position.set(0, 0, 0);
+			explodeModifier(sky3.geometry);
+			scene.add( sky3 );
+
 			sky1Orig = getAllStartingPoints(sky1);
 			sky2Orig = getAllStartingPoints(sky2);
+			sky3Orig = getAllStartingPoints(sky3);
 
 			// SET UP EVENTS -------------------------------------------
 
@@ -116,6 +126,12 @@
 			run();
 		});
 
+		function checkForModeChange() {
+    		if (modeCounter.getElapsedTime() > transitionTime) {
+    				modeCounter.start();
+    				whichEffect++;
+    			}
+    	}
 
 		// MAIN LOOP
 
@@ -133,31 +149,115 @@
 			time += delta;
 			// time = Date.now() - start;
 			updateLights();
-			sky1.rotation.x += 0.0001;
-    	sky1.rotation.y += 0.0002;
+			sky1.rotation.x += 0.00005;
+    	sky1.rotation.y += 0.00003;
 
-    	sky2.rotation.x += 0.00002;
-    	sky2.rotation.y += 0.00001;
+    	sky2.rotation.x -= 0.00005;
+    	sky2.rotation.y -= 0.00002;
+
+    	sky3.rotation.x += 0.00003;
+    	sky3.rotation.y += 0.00005
 
     	switch (whichEffect) {
     		case 0:
-    			// flatsplode(sky1);
-    			// implode(sky2);
-    			asplode(sky1, sky1Orig);
-    			// randomizeVertices(sky1);
+    			// console.log("0 - nothing");
+    			checkForModeChange();
     			break;
     		case 1:
-    			lerpToResetVerts(sky1, sky1Orig);
+    			// console.log("1 - sky1 dyamics, no other motion");
+    			asplode(sky1, sky1Orig);
+    			checkForModeChange();
     			break;
     		case 2:
-    			moveToStartPoints(sky1, sky1Orig);
+    			// console.log("2 - sky1 dynamics, shrinking down");
+    			asplode(sky1, sky1Orig);
+    			lerpToCenter(sky1, lerpSpeed);
+    			checkForModeChange();
+    			break;
+    		case 3:
+    			// console.log("3 - sky 1 continue to shrink and asplode, sky 2 begins to implode");
+    			asplode(sky1, sky1Orig);
+    			lerpToCenter(sky1, lerpSpeed);
+    			implode(sky2, sky2Orig);
+    			checkForModeChange();
+    			break;
+    		case 4:
+    			// console.log("4 - sky 2 imploding and shrinking and sky1 and 3 shrinking");
+    			implode(sky2);
+    			lerpToCenter(sky1, lerpSpeed);
+    			lerpToResetVerts(sky2, sky1Orig, lerpSpeed);
+    			lerpToResetVerts(sky3, sky2Orig, lerpSpeed);
+    			checkForModeChange();
+    			break;
+    		case 5:
+    			// console.log("5 - sky 1 moves to sky 3 start pos");
+    			moveToStartPoints(sky1, sky3Orig);	
+    			lerpToResetVerts(sky2, sky1Orig, lerpSpeed);
+    			lerpToResetVerts(sky3, sky2Orig, lerpSpeed);
+    			implode(sky2);
+    			whichEffect++;
+    			break;
+    		case 6:
+    			// console.log("6 - sky2 stops imploding, moves to start point");
+    			lerpToResetVerts(sky2, sky1Orig, lerpSpeed);
+    			lerpToResetVerts(sky3, sky2Orig, lerpSpeed);
+    			checkForModeChange();
+    			break;
+    		case 7:
+    			// console.log("7 - sky2 moves to start points, sky3 starts flatsploding");
+    			lerpToResetVerts(sky2, sky1Orig, lerpSpeed);
+    			flatsplode(sky3);
+    			checkForModeChange();
+    			break;
+    		case 8:
+    			// console.log("8 - sky2 starts to shrink, sky3 flatsplode and shrink, sky1 shrink");
+    			lerpToCenter(sky2, lerpSpeed);
+    			flatsplode(sky3);
+    			asplode(sky3, sky1Orig);
+    			lerpToResetVerts(sky3, sky1Orig, lerpSpeed);
+    			lerpToResetVerts(sky1, sky2Orig, lerpSpeed);
+    			checkForModeChange();
+    			break;
+    		case 9:
+    			// console.log("9 - sky2 continues to shrink to nothing, sky3 multisplode and ...");
+    			lerpToCenter(sky2, lerpSpeed);
+    			lerpToResetVerts(sky3, sky1Orig, lerpSpeed);
+    			lerpToResetVerts(sky1, sky2Orig, lerpSpeed);
+    			checkForModeChange();
+    			break;
+    		case 10:
+    			moveToStartPoints(sky2, sky3Orig);
+    			lerpToResetVerts(sky3, sky1Orig, lerpSpeed);
+    			lerpToResetVerts(sky1, sky2Orig, lerpSpeed);
+    			whichEffect++;
+    		case 11:
+    			asplode(sky1, sky2Orig);
+    			checkForModeChange();
+    			break;
+    		case 12:
+    			asplode(sky1, sky2Orig);
+    			lerpToResetVerts(sky1, sky1Orig, lerpSpeed);
+    			lerpToResetVerts(sky2, sky2Orig, lerpSpeed);
+    			lerpToCenter(sky3, lerpSpeed);
+    			checkForModeChange();
+    			break;
+    		case 13:
+    			lerpToResetVerts(sky1, sky1Orig, lerpSpeed);
+    			lerpToResetVerts(sky2, sky2Orig, lerpSpeed);
+    			checkForModeChange();
+    			break;
+    		case 14:
+    			moveToStartPoints(sky3, sky3Orig);
+    			// lerpToResetVerts(sky1, sky1Orig, 0.001);
+    			// lerpToResetVerts(sky2, sky2Orig, 0.001);
+    			whichEffect = 0;
     			break;
     	}
     	
 		}
 
 		function onDocumentMouseDown(event) {
-			whichEffect = (whichEffect+1) % 3;
+			whichEffect = (whichEffect+1) % 15;
 		}
 
 		function setUpLights() {
@@ -181,19 +281,17 @@
 			directionalLight3.position.set(Math.sin(time*0.0001) * 2, Math.sin(time*0.0005) * 2, Math.cos(time*0.0003) + Math.sin(time*0.001)* 2);
 		}
 
-	
-
 		function updateLights() {
 			ambientCol[0] = Math.floor(152+(Math.sin(time * 0.0001) * 152));
 			ambientCol[1] = Math.floor(152+(Math.sin(time * 0.0001) * 152));
 			ambientCol[2] = Math.floor(152+(Math.sin(time * 0.0001) * 152));
 			ambientLight.color.setStyle('rgb('+ambientCol[0]+','+ambientCol[1]+','+ambientCol[2]+')');
 
-			directionalLight1.position.set(Math.sin(time*0.000051) * 2, Math.cos(time*0.000053) + Math.sin(time*0.00051)* 2, Math.sin(time*0.001) * 2);
+			directionalLight1.position.set(Math.sin(time*0.000021) * 2, Math.cos(time*0.000023) + Math.sin(time*0.00021)* 2, Math.sin(time*0.0005) * 2);
 
-			directionalLight2.position.set(Math.cos(time*0.00013) + Math.sin(time*0.0011)* 2, Math.sin(time*0.00011) * 2, Math.sin(time*0.001) * 2);
+			directionalLight2.position.set(Math.cos(time*0.000053) + Math.sin(time*0.00051)* 2, Math.sin(time*0.000051) * 2, Math.sin(time*0.0006) * 2);
 
-			directionalLight3.position.set(Math.sin(time*0.0001) * 2, Math.sin(time*0.0005) * 2, Math.cos(time*0.0003) + Math.sin(time*0.001)* 2);
+			directionalLight3.position.set(Math.sin(time*0.00008) * 2, Math.sin(time*0.00001) * 2, Math.cos(time*0.0008) + Math.sin(time*0.0002)* 2);
 		}
 
 		// DEFORMATION FUNCTIONS
@@ -217,7 +315,7 @@
 		function flatsplode(mesh) {
 			var xoff = 0;
 			mesh.geometry.faces.forEach((face, i) => {
-				var a = 0.5 + 0.5 * (noise.simplex2(xoff, time * 0.0005));
+				var a =/* 0.5 + 0.5 * */(noise.simplex2(xoff, time * 0.0005));
 				
 				var modFace = face.normal.clone();
 				modFace.multiplyScalar(a*0.1);
@@ -261,11 +359,11 @@
 
 
 
-		function lerpToResetVerts(mesh, originalVerts) {
+		function lerpToResetVerts(mesh, originalVerts, amount) {
 			mesh.geometry.vertices.forEach((vertex, i) => {
 				var d = vertex.distanceTo(originalVerts.vertices[i]);
 				if (d > 0.0001) {
-					vertex.lerp(originalVerts.vertices[i], 0.01);
+					vertex.lerp(originalVerts.vertices[i], amount);
 				} else {
 					vertex = originalVerts.vertices[i].clone();
 				}
@@ -279,6 +377,13 @@
 				vertex.x += Math.random() * 5 - 2.5;
 				vertex.y += Math.random() * 5 - 2.5;
 				vertex.z += Math.random() * 5 - 2.5;
+			});
+			mesh.geometry.verticesNeedUpdate = true;
+		}
+
+		function lerpToCenter(mesh, amount) {
+			mesh.geometry.vertices.forEach((vertex, i) => {
+				vertex.lerp((new THREE.Vector3(0,0,0)), amount);
 			});
 			mesh.geometry.verticesNeedUpdate = true;
 		}
